@@ -351,7 +351,7 @@ map.on("load", async () => {
     setStatus(parts.join(" · "), "ready");
   }
 
-  // Cycling path tap → simple popup
+  // Cycling paths tap → simple popup
   map.on("click", "cycling-line", (e) => {
     const f = e.features?.[0];
     if (!f) return;

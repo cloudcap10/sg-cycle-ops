@@ -166,6 +166,45 @@ function simplifyGeoJSON(geojson, tolerance = SIMPLIFY_TOLERANCE) {
   return { ...geojson, features };
 }
 
+// Filter out features that are not real cycling paths
+// (park walking trails, planned PCNs, temporary diversions, short GPS traces)
+function filterCyclingFeatures(geojson) {
+  const excludePatterns = [
+    /under.?plan/,
+    /under.?study/,
+    /pending.?designat/,
+    /temporary.?closure/i,
+    /temporary.?diversion/i,
+  ];
+
+  const features = geojson.features.filter((f) => {
+    const name = String(f.properties?.name || f.properties?.Name || "");
+
+    // Exclude planned / under-study / temporary paths
+    if (excludePatterns.some((p) => p.test(name))) return false;
+
+    // Exclude very short LineStrings (2 points) with generic "Cycling Path" name —
+    // these are usually inaccurate GPS traces or proposed routes
+    if (
+      f.geometry?.type === "LineString" &&
+      f.geometry.coordinates.length <= 2 &&
+      /cycling\s*path/i.test(name)
+    ) {
+      return false;
+    }
+
+    // Exclude park walking paths (e.g. "Lower Seletar Reservoir Park", "Yishun Park")
+    if (/park$/i.test(name)) return false;
+
+    // Exclude Point geometries — cycling paths should be lines
+    if (f.geometry?.type === "Point") return false;
+
+    return true;
+  });
+
+  return { ...geojson, features };
+}
+
 function simplifyDP(points, tolerance) {
   if (points.length <= 2) return points;
 
@@ -218,7 +257,11 @@ async function main() {
       console.log(`[fetch] ${ds.label} (${ds.id})`);
       const { signedUrl, format } = await pollSignedUrl(ds.id);
       console.log(`  format: ${format}`);
-      const geojson = await downloadAsGeoJSON(signedUrl, format);
+      let geojson = await downloadAsGeoJSON(signedUrl, format);
+      // Apply cycling-specific post-filter
+      if (ds.source === "kml") {
+        geojson = filterCyclingFeatures(geojson);
+      }
       const count = geojson?.features?.length ?? 0;
       await writeFile(outPath, JSON.stringify(geojson));
       console.log(`  wrote ${count} features → public/${ds.out}`);
