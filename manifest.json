@@ -6,8 +6,8 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0a0f1c",
-  "theme_color": "#0a0f1c",
+  "background_color": "#fdf8ed",
+  "theme_color": "#fdf8ed",
   "categories": ["maps", "navigation", "sports", "health"],
   "icons": [
     {
