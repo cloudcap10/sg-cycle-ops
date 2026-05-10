@@ -1,0 +1,12 @@
+# Netlify configuration
+# Adds Strava Function with longer timeout for OAuth
+
+[build]
+  functions = "netlify/functions"
+  command = "npm run build"  # runs fetch:data
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true

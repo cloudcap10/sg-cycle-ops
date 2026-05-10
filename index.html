@@ -79,6 +79,19 @@
     <label class="check"><input type="checkbox" id="toggle-parks" checked /><span>Parks &amp; nature</span></label>
     <label class="check"><input type="checkbox" id="toggle-trail" /><span>My ride trail</span></label>
     <label class="check"><input type="checkbox" id="toggle-cycling" checked /><span>Cycling paths</span></label>
+    <hr class="divider" />
+    <div class="strava-section">
+      <span class="strava-badge">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.3 6.3a4 4 0 11-4.6 4.6 5.2 5.2 0 002.3 2.3 4 4 0 114.6-4.6z"/></svg>
+        Strava
+      </span>
+      <button id="strava-connect" class="btn-strava" type="button">Connect</button>
+      <div id="strava-status" class="strava-status" hidden>
+        <span id="strava-athlete" class="strava-athlete"></span>
+        <button id="strava-upload" class="btn-strava-sm" type="button" title="Upload this ride to Strava">Upload</button>
+        <button id="strava-disconnect" class="btn-strava-sm btn-strava-disconnect" type="button" title="Disconnect Strava">✕</button>
+      </div>
+    </div>
     <label class="check"><input type="checkbox" id="toggle-imperial" /><span>Imperial units</span></label>
     <button id="clear-trail" class="btn-link" type="button">Clear trail</button>
     <button id="export-gpx" class="btn-link" type="button" title="Download recorded trail as GPX file">Export GPX</button>

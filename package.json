@@ -29,7 +29,8 @@
     "fetch:data": "node scripts/fetch-data.mjs",
     "build": "npm run fetch:data",
     "start": "npm run dev",
-    "format": "npx --yes prettier@latest --write ."
+    "format": "npx --yes prettier@latest --write .",
+    "test": "echo \"No tests yet\" && exit 0"
   },
   "devDependencies": {
     "@tmcw/togeojson": "^5.8.1",

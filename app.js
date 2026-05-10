@@ -647,6 +647,105 @@ $("#export-gpx").addEventListener("click", () => {
   setStatus("Trail exported as GPX", "ready");
 });
 
+// ---------- Strava sync ----------
+const STRAVA_CONNECT = $("#strava-connect");
+const STRAVA_STATUS = $("#strava-status");
+const STRAVA_ATHLETE = $("#strava-athlete");
+const STRAVA_UPLOAD = $("#strava-upload");
+const STRAVA_DISCONNECT = $("#strava-disconnect");
+
+let stravaState = localStorage.getItem("strava_state") || null;
+if (stravaState) localStorage.removeItem("strava_state");
+
+async function checkStravaStatus() {
+  try {
+    const res = await fetch("/.netlify/functions/strava/status", { credentials: "include" });
+    const data = await res.json();
+    if (data.connected) {
+      STRAVA_CONNECT.hidden = true;
+      STRAVA_STATUS.hidden = false;
+      STRAVA_ATHLETE.textContent = data.athlete?.firstname
+        ? `${data.athlete.firstname} ${data.athlete.lastname}`
+        : "Connected";
+    } else {
+      STRAVA_CONNECT.hidden = false;
+      STRAVA_STATUS.hidden = true;
+    }
+  } catch (_) {}
+}
+
+STRAVA_CONNECT.addEventListener("click", async () => {
+  try {
+    const res = await fetch("/.netlify/functions/strava/connect", { credentials: "include" });
+    const data = await res.json();
+    if (data.url) {
+      localStorage.setItem("strava_state", data.state || "");
+      window.open(data.url, "_blank", "width=600,height=700");
+      // Poll for connection
+      const poll = setInterval(async () => {
+        const s = await fetch("/.netlify/functions/strava/status", { credentials: "include" });
+        const d = await s.json();
+        if (d.connected) {
+          clearInterval(poll);
+          checkStravaStatus();
+          setStatus("Strava connected!", "ready");
+        }
+      }, 2000);
+      setTimeout(() => clearInterval(poll), 120000);
+    }
+  } catch (err) {
+    console.warn("Strava connect failed:", err.message);
+    setStatus("Strava connect failed — check env vars", "warn");
+  }
+});
+
+STRAVA_UPLOAD.addEventListener("click", async () => {
+  if (trail.length < 2) {
+    setStatus("No trail to upload", "warn");
+    return;
+  }
+  setStatus("Uploading to Strava…", "tracking");
+  const now = new Date();
+  const gpx = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<gpx xmlns="http://www.topografix.com/GPX/1/1" creator="SG Cycle Ops">',
+    `<trk><name>SG Cycle Ops – ${now.toISOString().slice(0,10)}</name><trkseg>`,
+    trail.map(([lon, lat]) =>
+      `  <trkpt lat="${lat.toFixed(7)}" lon="${lon.toFixed(7)}"><time>${now.toISOString()}</time></trkpt>`
+    ).join("\n"),
+    "  </trkseg></trk></gpx>"
+  ].join("\n");
+
+  try {
+    const res = await fetch("/.netlify/functions/strava/upload", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gpx, name: `SG Cycle Ops – ${now.toISOString().slice(0, 10)}` })
+    });
+    const data = await res.json();
+    if (data.id) {
+      setStatus("Uploaded to Strava! 🎉", "ready");
+    } else {
+      setStatus("Upload failed — try reconnecting", "warn");
+      console.warn("Strava upload response:", data);
+    }
+  } catch (err) {
+    console.warn("Strava upload error:", err.message);
+    setStatus("Upload failed — check browser console", "warn");
+  }
+});
+
+STRAVA_DISCONNECT.addEventListener("click", async () => {
+  await fetch("/.netlify/functions/strava/disconnect", { method: "POST", credentials: "include" });
+  STRAVA_CONNECT.hidden = false;
+  STRAVA_STATUS.hidden = true;
+  setStatus("Strava disconnected", "ready");
+});
+
+// Check Strava status on load
+checkStravaStatus();
+
 // ---------- Helpers ----------
 
 function haversine([lon1, lat1], [lon2, lat2]) {
