@@ -270,7 +270,7 @@ map.on("load", async () => {
       id,
       type: "line",
       source: "cycling",
-      layout: { "line-cap": "round", "line-join": "round", visibility: "none" },
+      layout: { "line-cap": "round", "line-join": "round" },
       paint: i === 0
         ? { "line-color": "#e63946", "line-width": ["interpolate", ["linear"], ["zoom"], 12, 2, 16, 5], "line-opacity": 0.7, "line-blur": 2 }
         : { "line-color": "#e63946", "line-width": ["interpolate", ["linear"], ["zoom"], 12, 6, 16, 14], "line-opacity": 0.15, "line-blur": 6 }
