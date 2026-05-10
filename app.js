@@ -676,26 +676,49 @@ async function checkStravaStatus() {
 
 STRAVA_CONNECT.addEventListener("click", async () => {
   try {
+    setStatus("Connecting to Strava…", "tracking");
     const res = await fetch("/.netlify/functions/strava/connect", { credentials: "include" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    if (data.url) {
-      localStorage.setItem("strava_state", data.state || "");
-      window.open(data.url, "_blank", "width=600,height=700");
-      // Poll for connection
-      const poll = setInterval(async () => {
+    if (!data.url) throw new Error("No URL returned");
+    if (!data.state) throw new Error("No state returned");
+
+    localStorage.setItem("strava_state", data.state);
+    const popup = window.open(data.url, "strava_oauth", "width=600,height=700,popup=yes");
+    if (!popup || popup.closed) {
+      setStatus("Popup blocked — allow popups for this site, then try again", "warn");
+      return;
+    }
+
+    // Poll until popup closes or we get a connection
+    const poll = setInterval(async () => {
+      if (popup.closed) {
+        clearInterval(poll);
+        const s = await fetch("/.netlify/functions/strava/status", { credentials: "include" });
+        const d = await s.json();
+        if (d.connected) {
+          checkStravaStatus();
+          setStatus("Strava connected! 🎉", "ready");
+        } else {
+          setStatus("Strava not connected — try again", "warn");
+        }
+        return;
+      }
+      try {
         const s = await fetch("/.netlify/functions/strava/status", { credentials: "include" });
         const d = await s.json();
         if (d.connected) {
           clearInterval(poll);
+          popup.close();
           checkStravaStatus();
-          setStatus("Strava connected!", "ready");
+          setStatus("Strava connected! 🎉", "ready");
         }
-      }, 2000);
-      setTimeout(() => clearInterval(poll), 120000);
-    }
+      } catch (_) {}
+    }, 2000);
+    setTimeout(() => { clearInterval(poll); setStatus("Connection timed out", "warn"); }, 120000);
   } catch (err) {
     console.warn("Strava connect failed:", err.message);
-    setStatus("Strava connect failed — check env vars", "warn");
+    setStatus("Strava connect failed — " + err.message, "warn");
   }
 });
 
