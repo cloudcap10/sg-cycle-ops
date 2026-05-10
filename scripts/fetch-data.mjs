@@ -21,6 +21,7 @@ import { writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { inflateSync } from "node:zlib";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -39,6 +40,12 @@ const DATASETS = [
     label: "Parks",
     id: process.env.PARKS_DATASET_ID || "",
     out: "parks.geojson"
+  },
+  {
+    label: "Cycling Paths",
+    id: process.env.CYCLING_DATASET_ID || "d_267cd25760c33e8ef147f9c31e90f087",
+    out: "cycling.geojson",
+    source: "kml" // fetch as KML from data.gov.sg
   }
 ];
 
@@ -79,7 +86,47 @@ async function downloadAsGeoJSON(signedUrl, format) {
     return simplifyGeoJSON(await kmlToGeoJSON(xml));
   }
 
+  if (format === "kmz") {
+    const buf = await res.arrayBuffer();
+    const kmz = Buffer.from(buf);
+    const kmlBuf = extractKmlFromKmz(kmz);
+    const xml = new TextDecoder().decode(kmlBuf);
+    return simplifyGeoJSON(await kmlToGeoJSON(xml));
+  }
+
   throw new Error(`unsupported format: ${format} (${signedUrl})`);
+}
+
+function extractKmlFromKmz(kmzBuf) {
+  // KMZ = ZIP containing a KML file. We do a minimal local-file-header parse
+  // and inflate the first .kml/.kml.gz entry.
+  const data = new DataView(kmzBuf);
+  let offset = 0;
+  while (offset + 30 <= kmzBuf.byteLength) {
+    const sig = data.getUint32(offset, true);
+    if (sig !== 0x04034b50) break; // local file header signature
+    const compression = data.getUint16(offset + 8, true);
+    const compSize = data.getUint32(offset + 18, true);
+    const uncompSize = data.getUint32(offset + 22, true);
+    const nameLen = data.getUint16(offset + 26, true);
+    const extraLen = data.getUint16(offset + 28, true);
+    const nameStart = offset + 30;
+    const filename = new TextDecoder().decode(
+      new Uint8Array(kmzBuf, nameStart, nameLen)
+    );
+    const dataStart = nameStart + nameLen + extraLen;
+    if (filename.toLowerCase().endsWith(".kml")) {
+      const compressed = kmzBuf.slice(dataStart, dataStart + compSize);
+      if (compression === 8) {
+        // DEFLATE
+        return inflateSync(Buffer.from(compressed));
+      } else if (compression === 0) {
+        return Buffer.from(compressed);
+      }
+    }
+    offset = dataStart + compSize;
+  }
+  throw new Error("No KML file found inside KMZ");
 }
 
 async function kmlToGeoJSON(xml) {

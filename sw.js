@@ -13,6 +13,9 @@ const SHELL_ASSETS = [
   "./app.js",
   "./manifest.json",
   "./public/icon.svg",
+  "./public/cycling.geojson",
+  "./public/pcn.geojson",
+  "./public/parks.geojson",
   "https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css",
   "https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"
 ];

@@ -23,6 +23,7 @@ const SG_BOUNDS = [
 const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 const PCN_URL = "./public/pcn.geojson";
 const PARKS_URL = "./public/parks.geojson";
+const CYCLING_URL = "./public/cycling.geojson";
 
 const $ = (sel) => document.querySelector(sel);
 const statusText = $("#status-text");
@@ -206,6 +207,9 @@ map.on("load", async () => {
   applyWarmPalette();
   map.on("styledata", applyWarmPalette);
 
+  // Cycling paths — red overlay
+  const cycling = await loadGeoJSON(CYCLING_URL);
+
   const [pcn, parks] = await Promise.all([
     loadGeoJSON(PCN_URL),
     loadGeoJSON(PARKS_URL)
@@ -256,6 +260,21 @@ map.on("load", async () => {
       "line-opacity": 0.7,
       "line-dasharray": dashSequence[0]
     }
+  });
+
+  // Cycling paths — red overlay
+  const cyclingCount = cycling.features?.length ?? 0;
+  map.addSource("cycling", { type: "geojson", data: cycling });
+  ["cycling-line", "cycling-glow"].forEach((id, i) => {
+    map.addLayer({
+      id,
+      type: "line",
+      source: "cycling",
+      layout: { "line-cap": "round", "line-join": "round", visibility: "none" },
+      paint: i === 0
+        ? { "line-color": "#e63946", "line-width": ["interpolate", ["linear"], ["zoom"], 12, 2, 16, 5], "line-opacity": 0.7, "line-blur": 2 }
+        : { "line-color": "#e63946", "line-width": ["interpolate", ["linear"], ["zoom"], 12, 6, 16, 14], "line-opacity": 0.15, "line-blur": 6 }
+    });
   });
 
   // Ride trail
@@ -322,13 +341,28 @@ map.on("load", async () => {
 
   const pcnCount = pcn.features?.length ?? 0;
   const parksCount = parks.features?.length ?? 0;
-  if (pcnCount === 0 && parksCount === 0) {
+  const parts = [];
+  if (pcnCount) parts.push(`${pcnCount.toLocaleString()} PCN`);
+  if (parksCount) parts.push(`${parksCount} parks`);
+  if (cyclingCount) parts.push(`${cyclingCount} cycling paths`);
+  if (parts.length === 0) {
     setStatus("No data — run npm run fetch:data", "warn");
-  } else if (parksCount === 0) {
-    setStatus(`${pcnCount.toLocaleString()} PCN segments`, "ready");
   } else {
-    setStatus(`${pcnCount.toLocaleString()} PCN · ${parksCount} parks`, "ready");
+    setStatus(parts.join(" · "), "ready");
   }
+
+  // Cycling path tap → simple popup
+  map.on("click", "cycling-line", (e) => {
+    const f = e.features?.[0];
+    if (!f) return;
+    const name = f.properties?.name || f.properties?.Name || "Cycling Path";
+    new maplibregl.Popup({ closeButton: true, maxWidth: "200px", offset: 12 })
+      .setLngLat(e.lngLat)
+      .setHTML(`<div class="pop"><div class="pop-title">${escapeHtml(name)}</div></div>`)
+      .addTo(map);
+  });
+  map.on("mouseenter", "cycling-line", () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", "cycling-line", () => { map.getCanvas().style.cursor = ""; });
 
   // PCN tap → friendly popup
   map.on("click", "pcn-line", (e) => openPCNPopup(e));
@@ -561,6 +595,12 @@ $("#toggle-parks").addEventListener("change", (e) => {
 $("#toggle-trail").addEventListener("change", (e) => {
   const v = e.target.checked ? "visible" : "none";
   for (const id of ["trail-line", "trail-glow"]) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", v);
+  }
+});
+$("#toggle-cycling").addEventListener("change", (e) => {
+  const v = e.target.checked ? "visible" : "none";
+  for (const id of ["cycling-line", "cycling-glow"]) {
     if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", v);
   }
 });
