@@ -1,0 +1,39 @@
+{
+  "name": "sg-cycle-ops",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Singapore Park Connector Network (PCN) cycling map with live GPS. PWA, offline-ready, open source.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Joven Talasan <joven.talasan@gmail.com>",
+  "homepage": "https://github.com/cloudcap10/sg-cycle-ops",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/cloudcap10/sg-cycle-ops.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cloudcap10/sg-cycle-ops/issues"
+  },
+  "keywords": [
+    "singapore",
+    "cycling",
+    "pcn",
+    "park-connector",
+    "maplibre",
+    "pwa",
+    "openstreetmap",
+    "data.gov.sg"
+  ],
+  "scripts": {
+    "dev": "npx --yes serve@latest -l 5173 .",
+    "fetch:data": "node scripts/fetch-data.mjs",
+    "format": "npx --yes prettier@latest --write ."
+  },
+  "devDependencies": {
+    "@tmcw/togeojson": "^5.8.1",
+    "@xmldom/xmldom": "^0.8.10"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

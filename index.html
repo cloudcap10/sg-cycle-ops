@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  />
+  <meta name="theme-color" content="#0a0f1c" />
+  <meta
+    name="description"
+    content="Singapore Park Connector Network (PCN) cycling map with live GPS tracking. Open source, offline-ready."
+  />
+  <title>SG Cycle Ops — PCN Map</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./public/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./public/icon-192.png" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
+  />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="map" aria-label="Singapore PCN map"></div>
+
+  <header class="topbar" role="banner">
+    <span class="brand">
+      <span class="brand-mark" aria-hidden="true">🚴</span>
+      SG Cycle Ops
+    </span>
+    <span id="status" class="status" aria-live="polite">Loading…</span>
+  </header>
+
+  <div class="controls" role="group" aria-label="Map controls">
+    <button id="locate" class="btn btn-primary" type="button" aria-pressed="false">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="label">Track me</span>
+    </button>
+    <button id="recenter" class="btn" type="button">Re-center</button>
+    <button id="layers" class="btn" type="button" aria-haspopup="true" aria-expanded="false">
+      Layers
+    </button>
+  </div>
+
+  <aside id="layers-panel" class="panel" hidden>
+    <h2>Layers</h2>
+    <label><input type="checkbox" id="toggle-pcn" checked /> Park Connectors</label>
+    <label><input type="checkbox" id="toggle-parks" checked /> Parks</label>
+    <label><input type="checkbox" id="toggle-trail" /> My ride trail</label>
+    <button id="clear-trail" class="btn btn-link" type="button">Clear trail</button>
+  </aside>
+
+  <div id="hud" class="hud" hidden aria-live="polite">
+    <div class="hud-row">
+      <span class="hud-k">Speed</span>
+      <span class="hud-v"><span id="hud-speed">0.0</span> km/h</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-k">Distance</span>
+      <span class="hud-v"><span id="hud-dist">0.00</span> km</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-k">Accuracy</span>
+      <span class="hud-v">±<span id="hud-acc">--</span> m</span>
+    </div>
+  </div>
+
+  <footer class="credit">
+    Map © <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> ·
+    PCN © <a href="https://data.gov.sg" target="_blank" rel="noopener">data.gov.sg</a> ·
+    <a href="https://github.com/cloudcap10/sg-cycle-ops" target="_blank" rel="noopener">Source</a>
+  </footer>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
