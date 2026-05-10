@@ -144,7 +144,29 @@ map.on("load", async () => {
   } else {
     setStatus(`${pcn.features.length} PCN · ${parks.features.length} parks`);
   }
+
+  // Click a PCN segment → popup with loop name
+  map.on("click", "pcn-line", (e) => {
+    const f = e.features?.[0];
+    if (!f) return;
+    const name = f.properties?.PARK || f.properties?.PCN_LOOP || "Park Connector";
+    const loop = f.properties?.PCN_LOOP && f.properties?.PCN_LOOP !== name
+      ? `<div class="pop-sub">${escapeHtml(f.properties.PCN_LOOP)}</div>`
+      : "";
+    new maplibregl.Popup({ closeButton: true, maxWidth: "260px" })
+      .setLngLat(e.lngLat)
+      .setHTML(`<div class="pop"><div class="pop-title">${escapeHtml(name)}</div>${loop}</div>`)
+      .addTo(map);
+  });
+  map.on("mouseenter", "pcn-line", () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", "pcn-line", () => { map.getCanvas().style.cursor = ""; });
 });
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[c]);
+}
 
 // ---------- Geolocation tracking ----------
 

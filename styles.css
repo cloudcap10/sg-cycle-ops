@@ -171,6 +171,21 @@ html, body {
 }
 .credit a { color: var(--fg); text-decoration: none; border-bottom: 1px dotted var(--muted); }
 
+.maplibregl-popup-content {
+  background: var(--panel) !important;
+  color: var(--fg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.maplibregl-popup-tip { display: none; }
+.pop-title { font-weight: 700; font-size: 14px; }
+.pop-sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.maplibregl-popup-close-button { color: var(--muted); font-size: 18px; padding: 0 8px; }
+
 .maplibregl-ctrl-attrib { display: none; }
 .maplibregl-ctrl-bottom-right { bottom: calc(var(--safe-bottom) + 80px) !important; }
 
