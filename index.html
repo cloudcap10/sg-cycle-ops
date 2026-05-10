@@ -6,15 +6,21 @@
     name="viewport"
     content="width=device-width, initial-scale=1, viewport-fit=cover"
   />
-  <meta name="theme-color" content="#0a0f1c" />
+  <meta name="theme-color" content="#fdf8ed" />
   <meta
     name="description"
     content="Singapore Park Connector Network (PCN) cycling map with live GPS tracking. Open source, offline-ready."
   />
-  <title>SG Cycle Ops — PCN Map</title>
+  <title>SG Cycle Ops · Park Connector Map</title>
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" href="./public/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="./public/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap"
+    rel="stylesheet"
+  />
   <link
     rel="stylesheet"
     href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
@@ -26,49 +32,88 @@
 
   <header class="topbar" role="banner">
     <span class="brand">
-      <span class="brand-mark" aria-hidden="true">🚴</span>
-      SG Cycle Ops
+      <span class="brand-leaf" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none">
+          <path
+            d="M6 26 C 6 14, 16 6, 26 6 C 26 16, 18 26, 6 26 Z"
+            fill="currentColor"
+          />
+          <path
+            d="M8 24 C 14 18, 20 14, 24 10"
+            stroke="#fdf8ed"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            fill="none"
+          />
+        </svg>
+      </span>
+      <span class="brand-text">
+        <span class="brand-name">SG Cycle Ops</span>
+        <span class="brand-tag">Park Connectors · live GPS</span>
+      </span>
     </span>
-    <span id="status" class="status" aria-live="polite">Loading…</span>
+    <span id="status" class="status-pill" aria-live="polite">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span id="status-text">Loading…</span>
+    </span>
   </header>
 
-  <div class="controls" role="group" aria-label="Map controls">
-    <button id="locate" class="btn btn-primary" type="button" aria-pressed="false">
-      <span class="dot" aria-hidden="true"></span>
-      <span class="label">Track me</span>
-    </button>
-    <button id="recenter" class="btn" type="button">Re-center</button>
-    <button id="layers" class="btn" type="button" aria-haspopup="true" aria-expanded="false">
-      Layers
-    </button>
+  <div id="hud" class="hud" hidden aria-live="polite">
+    <div class="hud-cell hud-primary">
+      <span class="hud-k">Speed</span>
+      <span class="hud-v"><span id="hud-speed">0.0</span><span class="hud-u">km/h</span></span>
+    </div>
+    <div class="hud-cell">
+      <span class="hud-k">Distance</span>
+      <span class="hud-v"><span id="hud-dist">0.00</span><span class="hud-u">km</span></span>
+    </div>
+    <div class="hud-cell">
+      <span class="hud-k">GPS</span>
+      <span class="hud-v">±<span id="hud-acc">--</span><span class="hud-u">m</span></span>
+    </div>
   </div>
 
   <aside id="layers-panel" class="panel" hidden>
     <h2>Layers</h2>
-    <label><input type="checkbox" id="toggle-pcn" checked /> Park Connectors</label>
-    <label><input type="checkbox" id="toggle-parks" checked /> Parks</label>
-    <label><input type="checkbox" id="toggle-trail" /> My ride trail</label>
-    <button id="clear-trail" class="btn btn-link" type="button">Clear trail</button>
+    <label class="check"><input type="checkbox" id="toggle-pcn" checked /><span>Park Connectors</span></label>
+    <label class="check"><input type="checkbox" id="toggle-parks" checked /><span>Parks &amp; nature</span></label>
+    <label class="check"><input type="checkbox" id="toggle-trail" /><span>My ride trail</span></label>
+    <button id="clear-trail" class="btn-link" type="button">Clear trail</button>
   </aside>
 
-  <div id="hud" class="hud" hidden aria-live="polite">
-    <div class="hud-row">
-      <span class="hud-k">Speed</span>
-      <span class="hud-v"><span id="hud-speed">0.0</span> km/h</span>
-    </div>
-    <div class="hud-row">
-      <span class="hud-k">Distance</span>
-      <span class="hud-v"><span id="hud-dist">0.00</span> km</span>
-    </div>
-    <div class="hud-row">
-      <span class="hud-k">Accuracy</span>
-      <span class="hud-v">±<span id="hud-acc">--</span> m</span>
-    </div>
+  <div class="controls" role="group" aria-label="Map controls">
+    <button id="layers" class="chip" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Toggle layers">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 4 3 9l9 5 9-5-9-5Z" fill="currentColor" opacity=".4"/>
+        <path d="m3 14 9 5 9-5M3 9l9 5 9-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+    </button>
+    <button id="recenter" class="chip" type="button" aria-label="Re-center on me">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="3" fill="currentColor"/>
+        <circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="1.6" fill="none"/>
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <button id="locate" class="ride" type="button" aria-pressed="false">
+      <span class="ride-glow" aria-hidden="true"></span>
+      <span class="ride-inner">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" class="ride-icon ride-icon-play">
+          <path d="M8 5l11 7-11 7V5Z" fill="currentColor"/>
+        </svg>
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" class="ride-icon ride-icon-stop">
+          <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>
+        </svg>
+        <span class="ride-label">Ride</span>
+      </span>
+    </button>
   </div>
 
   <footer class="credit">
-    Map © <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> ·
-    PCN © <a href="https://data.gov.sg" target="_blank" rel="noopener">data.gov.sg</a> ·
+    <span>Tiles © <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a></span>
+    <span aria-hidden="true">·</span>
+    <span>PCN © <a href="https://data.gov.sg" target="_blank" rel="noopener">data.gov.sg</a></span>
+    <span aria-hidden="true">·</span>
     <a href="https://github.com/cloudcap10/sg-cycle-ops" target="_blank" rel="noopener">Source</a>
   </footer>
 
