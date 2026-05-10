@@ -7,6 +7,8 @@
  *   2. GET signed URL → actual file (KML / GeoJSON / SHP / CSV)
  *
  * KML responses are converted to GeoJSON via @tmcw/togeojson at runtime.
+ * LineString geometries are simplified via Douglas-Peucker to reduce
+ * payload size for mobile consumption.
  *
  * Override defaults via env or CLI:
  *   PCN_DATASET_ID=d_xxx PARKS_DATASET_ID=d_yyy node scripts/fetch-data.mjs
@@ -23,6 +25,9 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const OUT_DIR = join(ROOT, "public");
+
+// Simplification tolerance in degrees — ~10m at equator
+const SIMPLIFY_TOLERANCE = 0.0001;
 
 const DATASETS = [
   {
@@ -66,12 +71,12 @@ async function downloadAsGeoJSON(signedUrl, format) {
   if (format === "geojson" || format === "json") {
     const text = await res.text();
     const json = JSON.parse(text);
-    return normalizeGeoJSON(json);
+    return simplifyGeoJSON(normalizeGeoJSON(json));
   }
 
   if (format === "kml") {
     const xml = await res.text();
-    return await kmlToGeoJSON(xml);
+    return simplifyGeoJSON(await kmlToGeoJSON(xml));
   }
 
   throw new Error(`unsupported format: ${format} (${signedUrl})`);
@@ -95,6 +100,59 @@ function normalizeGeoJSON(input) {
 
 function emptyCollection() {
   return { type: "FeatureCollection", features: [] };
+}
+
+// Douglas-Peucker line simplification
+function simplifyGeoJSON(geojson, tolerance = SIMPLIFY_TOLERANCE) {
+  const features = geojson.features.map((f) => {
+    if (f.geometry?.type === "LineString") {
+      f = { ...f, geometry: { ...f.geometry } };
+      f.geometry.coordinates = simplifyDP(f.geometry.coordinates, tolerance);
+    } else if (f.geometry?.type === "MultiLineString") {
+      f = { ...f, geometry: { ...f.geometry } };
+      f.geometry.coordinates = f.geometry.coordinates.map((line) =>
+        simplifyDP(line, tolerance)
+      );
+    }
+    return f;
+  });
+  return { ...geojson, features };
+}
+
+function simplifyDP(points, tolerance) {
+  if (points.length <= 2) return points;
+
+  let maxDist = 0;
+  let maxIdx = 0;
+  const [start, end] = [points[0], points[points.length - 1]];
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const d = pointToSegmentDist(points[i], start, end);
+    if (d > maxDist) {
+      maxDist = d;
+      maxIdx = i;
+    }
+  }
+
+  if (maxDist > tolerance) {
+    const left = simplifyDP(points.slice(0, maxIdx + 1), tolerance);
+    const right = simplifyDP(points.slice(maxIdx), tolerance);
+    return left.slice(0, -1).concat(right);
+  }
+  return [start, end];
+}
+
+function pointToSegmentDist(p, a, b) {
+  const [px, py] = p;
+  const [ax, ay] = a;
+  const [bx, by] = b;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(px - ax, py - ay);
+  let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
 async function main() {

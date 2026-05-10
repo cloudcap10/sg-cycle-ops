@@ -61,11 +61,11 @@
   <div id="hud" class="hud" hidden aria-live="polite">
     <div class="hud-cell hud-primary">
       <span class="hud-k">Speed</span>
-      <span class="hud-v"><span id="hud-speed">0.0</span><span class="hud-u">km/h</span></span>
+      <span class="hud-v"><span id="hud-speed">0.0</span><span class="hud-u" id="hud-speed-unit">km/h</span></span>
     </div>
     <div class="hud-cell">
       <span class="hud-k">Distance</span>
-      <span class="hud-v"><span id="hud-dist">0.00</span><span class="hud-u">km</span></span>
+      <span class="hud-v"><span id="hud-dist">0.00</span><span class="hud-u" id="hud-dist-unit">km</span></span>
     </div>
     <div class="hud-cell">
       <span class="hud-k">GPS</span>
@@ -78,7 +78,9 @@
     <label class="check"><input type="checkbox" id="toggle-pcn" checked /><span>Park Connectors</span></label>
     <label class="check"><input type="checkbox" id="toggle-parks" checked /><span>Parks &amp; nature</span></label>
     <label class="check"><input type="checkbox" id="toggle-trail" /><span>My ride trail</span></label>
+    <label class="check"><input type="checkbox" id="toggle-imperial" /><span>Imperial units</span></label>
     <button id="clear-trail" class="btn-link" type="button">Clear trail</button>
+    <button id="export-gpx" class="btn-link" type="button" title="Download recorded trail as GPX file">Export GPX</button>
   </aside>
 
   <div class="controls" role="group" aria-label="Map controls">

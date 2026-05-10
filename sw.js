@@ -1,7 +1,7 @@
 // SG Cycle Ops — service worker
 // Caches app shell + map tiles for offline cycling.
 
-const VERSION = "v1";
+const VERSION = new Date().toISOString().slice(0, 10); // e.g. "2026-05-10"
 const SHELL_CACHE = `shell-${VERSION}`;
 const DATA_CACHE = `data-${VERSION}`;
 const TILE_CACHE = `tiles-${VERSION}`;

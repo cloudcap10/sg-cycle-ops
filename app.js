@@ -2,6 +2,18 @@
 // Loads MapLibre, paints a warm cream basemap, draws PCN with a flowing
 // dash animation, watches GPS, records a ride trail.
 
+const CONFIG = {
+  MAX_TRAIL_POINTS: 5000,
+  MIN_GPS_ACCURACY: 25, // meters — ignore fixes worse than this for distance
+  MIN_SEGMENT_DISTANCE: 100, // meters — minimum between counted segments
+  FLOW_INTERVAL_MS: 90,
+  FOLLOW_DURATION_MS: 600,
+  RECENTER_DURATION_MS: 700,
+  HUD_THROTTLE_MS: 250, // ~4 Hz visual cap
+  MAP_MIN_ZOOM: 9,
+  MAP_MAX_ZOOM: 19,
+};
+
 const SG_CENTER = [103.8198, 1.3521];
 const SG_BOUNDS = [
   [103.59, 1.15],
@@ -22,20 +34,43 @@ function setStatus(msg, state) {
   else delete statusPill.dataset.state;
 }
 
-const map = new maplibregl.Map({
-  container: "map",
-  style: STYLE_URL,
-  center: SG_CENTER,
-  zoom: 11,
-  minZoom: 9,
-  maxZoom: 19,
-  maxBounds: SG_BOUNDS,
-  attributionControl: false,
-  cooperativeGestures: false,
-  pitchWithRotate: false
-});
+// ---------- Map init with graceful failure ----------
 
-map.on("error", (e) => console.warn("Map error:", e?.error?.message || e));
+let map;
+try {
+map = new maplibregl.Map({
+    container: "map",
+    style: STYLE_URL,
+    center: SG_CENTER,
+    zoom: 11,
+    minZoom: CONFIG.MAP_MIN_ZOOM,
+    maxZoom: CONFIG.MAP_MAX_ZOOM,
+    maxBounds: SG_BOUNDS,
+    attributionControl: false,
+    cooperativeGestures: false,
+    pitchWithRotate: false
+  });
+  map.on("error", (e) => {
+    console.warn("Map error:", e?.error?.message || e);
+    showFallback("Map failed to load — check your connection and try again.");
+  });
+} catch (err) {
+  showFallback("Map library failed to load — check your connection or disable ad blockers.");
+}
+
+function showFallback(msg) {
+  const el = document.getElementById("map");
+  if (el) {
+    el.innerHTML =
+      `<div class="fallback">
+         <h2>Map unavailable</h2>
+         <p>${msg}</p>
+         <button onclick="location.reload()">Retry</button>
+       </div>`;
+  }
+}
+
+// ---------- helpers ----------
 
 async function loadGeoJSON(url) {
   try {
@@ -47,6 +82,8 @@ async function loadGeoJSON(url) {
     return { type: "FeatureCollection", features: [] };
   }
 }
+
+// ---------- Warm palette recolor ----------
 
 // Repaint Positron's grey palette into a warm cream/leaf scheme.
 // We touch only fill/line color paint props on existing layers — no new layers.
@@ -110,40 +147,59 @@ function isPaintPropForType(layerType, prop) {
   return false;
 }
 
-// PCN flowing dash animation — gives lines a sense of movement without breaking visual hierarchy
+// ---------- PCN flowing dash animation (rAF) ----------
+
+let flowRAF = null;
+let flowStep = 0;
+let lastFlowStepTime = 0;
+
+const dashSequence = [
+  [0, 4, 3, 2],
+  [0.5, 4, 3, 1.5],
+  [1, 4, 3, 1],
+  [1.5, 4, 3, 0.5],
+  [2, 4, 3, 0],
+  [3, 3, 3, 0],
+  [4, 2, 3, 0],
+  [4, 1, 3, 0.5],
+  [4, 0, 3, 1],
+  [3.5, 0, 3, 1.5],
+  [3, 0, 3, 2],
+  [2.5, 0, 3, 2.5],
+  [2, 0, 3, 3],
+  [1, 0, 3, 4],
+  [0, 0, 3, 5],
+  [0, 0.5, 3, 4.5],
+  [0, 1, 3, 4],
+  [0, 1.5, 3, 3.5],
+  [0, 2, 3, 3],
+  [0, 2.5, 3, 2.5],
+  [0, 3, 3, 2]
+];
+
+function animateFlow(now) {
+  if (now - lastFlowStepTime >= CONFIG.FLOW_INTERVAL_MS) {
+    flowStep = (flowStep + 1) % dashSequence.length;
+    if (map.getLayer("pcn-flow")) {
+      try { map.setPaintProperty("pcn-flow", "line-dasharray", dashSequence[flowStep]); } catch (_) {}
+    } else {
+      flowRAF = null;
+      return;
+    }
+    lastFlowStepTime = now;
+  }
+  flowRAF = requestAnimationFrame(animateFlow);
+}
+
 function startPCNFlow() {
   if (!map.getLayer("pcn-line")) return;
-  let step = 0;
-  const dashSequence = [
-    [0, 4, 3, 2],
-    [0.5, 4, 3, 1.5],
-    [1, 4, 3, 1],
-    [1.5, 4, 3, 0.5],
-    [2, 4, 3, 0],
-    [3, 3, 3, 0],
-    [4, 2, 3, 0],
-    [4, 1, 3, 0.5],
-    [4, 0, 3, 1],
-    [3.5, 0, 3, 1.5],
-    [3, 0, 3, 2],
-    [2.5, 0, 3, 2.5],
-    [2, 0, 3, 3],
-    [1, 0, 3, 4],
-    [0, 0, 3, 5],
-    [0, 0.5, 3, 4.5],
-    [0, 1, 3, 4],
-    [0, 1.5, 3, 3.5],
-    [0, 2, 3, 3],
-    [0, 2.5, 3, 2.5],
-    [0, 3, 3, 2]
-  ];
-  setInterval(() => {
-    step = (step + 1) % dashSequence.length;
-    if (map.getLayer("pcn-flow")) {
-      try { map.setPaintProperty("pcn-flow", "line-dasharray", dashSequence[step]); } catch (_) {}
-    }
-  }, 90);
+  if (flowRAF) cancelAnimationFrame(flowRAF);
+  flowStep = 0;
+  lastFlowStepTime = performance.now();
+  flowRAF = requestAnimationFrame(animateFlow);
 }
+
+// ---------- Layers & map setup ----------
 
 map.on("load", async () => {
   setStatus("Loading PCN…", "loading");
@@ -198,7 +254,7 @@ map.on("load", async () => {
       "line-color": "#fdf8ed",
       "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.8, 14, 1.6, 17, 2.4],
       "line-opacity": 0.7,
-      "line-dasharray": [0, 4, 3, 2]
+      "line-dasharray": dashSequence[0]
     }
   });
 
@@ -312,6 +368,46 @@ function emptyLine() {
   return { type: "Feature", geometry: { type: "LineString", coordinates: [] }, properties: {} };
 }
 
+// ---------- Unit helpers ----------
+
+let imperial = false;
+
+function formatSpeed(ms) {
+  return imperial ? (ms * 2.23694).toFixed(1) : (ms * 3.6).toFixed(1);
+}
+function formatDist(m) {
+  return imperial ? (m / 1609.344).toFixed(2) : (m / 1000).toFixed(2);
+}
+function speedUnit() { return imperial ? "mph" : "km/h"; }
+function distUnit() { return imperial ? "mi" : "km"; }
+
+function updateHUD(pos) {
+  const kmh = pos?.coords?.speed ? formatSpeed(pos.coords.speed) : "0.0";
+  $("#hud-speed").textContent = kmh;
+  $("#hud-speed-unit").textContent = speedUnit();
+  $("#hud-dist").textContent = formatDist(totalDistMeters);
+  $("#hud-dist-unit").textContent = distUnit();
+  $("#hud-acc").textContent = Math.round(pos?.coords?.accuracy ?? 0);
+}
+
+function rebuildHUD() {
+  const spdEl = $("#hud-speed");
+  const dstEl = $("#hud-dist");
+  const spdUnitEl = $("#hud-speed-unit");
+  const dstUnitEl = $("#hud-dist-unit");
+
+  if (!spdUnitEl) {
+    spdEl.insertAdjacentHTML("afterend", `<span class="hud-u" id="hud-speed-unit">${speedUnit()}</span>`);
+  } else {
+    spdUnitEl.textContent = speedUnit();
+  }
+  if (!dstUnitEl) {
+    dstEl.insertAdjacentHTML("afterend", `<span class="hud-u" id="hud-dist-unit">${distUnit()}</span>`);
+  } else {
+    dstUnitEl.textContent = distUnit();
+  }
+}
+
 // ---------- Geolocation tracking ----------
 
 const trackBtn = $("#locate");
@@ -326,6 +422,10 @@ let trail = [];
 let lastFix = null;
 let totalDistMeters = 0;
 let followMode = true;
+
+// Trail dirty flag for rAF batching
+let trailDirty = false;
+let lastFixRender = 0;
 
 function toggleTrack() {
   if (watchId !== null) stopTrack();
@@ -370,23 +470,19 @@ function onFix(pos) {
   const { longitude, latitude, accuracy, speed } = pos.coords;
   const coord = [longitude, latitude];
 
-  if (lastFix && accuracy < 25) {
+  // Distance tracking — only count good fixes
+  if (lastFix && accuracy < CONFIG.MIN_GPS_ACCURACY) {
     const d = haversine(lastFix, coord);
-    if (d < 100) totalDistMeters += d;
+    if (d >= CONFIG.MIN_SEGMENT_DISTANCE) totalDistMeters += d;
   }
   lastFix = coord;
 
+  // Accumulate trail points
   trail.push(coord);
-  if (trail.length > 5000) trail.shift();
-  const trailSrc = map.getSource("trail");
-  if (trailSrc) {
-    trailSrc.setData({
-      type: "Feature",
-      geometry: { type: "LineString", coordinates: trail },
-      properties: {}
-    });
-  }
+  if (trail.length > CONFIG.MAX_TRAIL_POINTS) trail.shift();
+  trailDirty = true;
 
+  // Update GPS marker source immediately for responsiveness
   const meSrc = map.getSource("me");
   if (meSrc) {
     const radiusPx = metersToPixelsAtLat(accuracy, latitude, map.getZoom());
@@ -399,13 +495,34 @@ function onFix(pos) {
     });
   }
 
-  const kmh = speed && speed > 0 ? (speed * 3.6).toFixed(1) : "0.0";
-  $("#hud-speed").textContent = kmh;
-  $("#hud-dist").textContent = (totalDistMeters / 1000).toFixed(2);
-  $("#hud-acc").textContent = Math.round(accuracy);
-  setStatus("Tracking", "tracking");
+  // Throttled HUD + map trail render (~4 Hz)
+  const now = performance.now();
+  if (now - lastFixRender >= CONFIG.HUD_THROTTLE_MS) {
+    lastFixRender = now;
 
-  if (followMode) map.easeTo({ center: coord, duration: 600 });
+    // Batch trail source update with rAF
+    if (trailDirty) {
+      trailDirty = false;
+      requestAnimationFrame(() => {
+        const trailSrc = map.getSource("trail");
+        if (trailSrc) {
+          trailSrc.setData({
+            type: "Feature",
+            geometry: { type: "LineString", coordinates: trail },
+            properties: {}
+          });
+        }
+      });
+    }
+
+    const kmh = speed && speed > 0 ? formatSpeed(speed) : "0.0";
+    $("#hud-speed").textContent = kmh;
+    $("#hud-dist").textContent = formatDist(totalDistMeters);
+    $("#hud-acc").textContent = Math.round(accuracy);
+    setStatus("Tracking", "tracking");
+  }
+
+  if (followMode) map.easeTo({ center: coord, duration: CONFIG.FOLLOW_DURATION_MS });
 }
 
 map.on("dragstart", () => { followMode = false; });
@@ -414,8 +531,8 @@ map.on("zoomstart", () => { followMode = false; });
 trackBtn.addEventListener("click", toggleTrack);
 recenterBtn.addEventListener("click", () => {
   followMode = true;
-  if (lastFix) map.easeTo({ center: lastFix, zoom: Math.max(map.getZoom(), 15), duration: 700 });
-  else map.easeTo({ center: SG_CENTER, zoom: 11, duration: 700 });
+  if (lastFix) map.easeTo({ center: lastFix, zoom: Math.max(map.getZoom(), 15), duration: CONFIG.RECENTER_DURATION_MS });
+  else map.easeTo({ center: SG_CENTER, zoom: 11, duration: CONFIG.RECENTER_DURATION_MS });
 });
 
 layersBtn.addEventListener("click", () => {
@@ -453,6 +570,41 @@ $("#clear-trail").addEventListener("click", () => {
   const src = map.getSource("trail");
   if (src) src.setData(emptyLine());
   $("#hud-dist").textContent = "0.00";
+  $("#hud-dist-unit").textContent = distUnit();
+});
+
+// ---------- Unit toggle ----------
+$("#toggle-imperial").addEventListener("change", (e) => {
+  imperial = e.target.checked;
+  rebuildHUD();
+  updateHUD(lastFix);
+});
+
+// ---------- GPX export ----------
+$("#export-gpx").addEventListener("click", () => {
+  if (trail.length < 2) {
+    setStatus("No trail to export", "warn");
+    return;
+  }
+  const now = new Date();
+  const header = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<gpx xmlns="http://www.topografix.com/GPX/1/1" creator="SG Cycle Ops">',
+    `<trk><name>Ride ${now.toISOString()}</name><trkseg>`
+  ].join("\n");
+  const points = trail.map(([lon, lat]) =>
+    `    <trkpt lat="${lat.toFixed(7)}" lon="${lon.toFixed(7)}"><time>${now.toISOString()}</time></trkpt>`
+  ).join("\n");
+  const gpx = header + "\n" + points + "\n  </trkseg></trk></gpx>";
+
+  const blob = new Blob([gpx], { type: "application/gpx+xml" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ride-${now.toISOString().slice(0, 19).replace(/:/g, "-")}.gpx`;
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus("Trail exported as GPX", "ready");
 });
 
 // ---------- Helpers ----------
@@ -474,12 +626,38 @@ function metersToPixelsAtLat(meters, lat, zoom) {
   return meters / metersPerPixel;
 }
 
+// ---------- Keyboard accessibility ----------
+
+layersBtn.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    layersBtn.click();
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !layersPanel.hidden) {
+    layersPanel.hidden = true;
+    layersBtn.setAttribute("aria-expanded", "false");
+    layersBtn.focus();
+  }
+});
+
 // ---------- Service worker ----------
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch((err) => {
-      console.warn("SW registration failed:", err.message);
+  navigator.serviceWorker.register("./sw.js").then((reg) => {
+    reg.addEventListener("updatefound", () => {
+      const newWorker = reg.installing;
+      if (!newWorker) return;
+      newWorker.addEventListener("statechange", () => {
+        if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+          setStatus("Update available — refreshing…", "warn");
+          setTimeout(() => window.location.reload(), 2000);
+        }
+      });
     });
+  }).catch((err) => {
+    console.warn("SW registration failed:", err.message);
   });
 }
